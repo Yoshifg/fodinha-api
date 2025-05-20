@@ -1,4 +1,4 @@
-from baralho import Baralho, Carta
+from .baralho import Baralho, Carta
 
 
 class Jogador:
@@ -99,7 +99,7 @@ class Fodinha:
         if self.vez_palpite.nome != nome_jogador:  # type: ignore
             raise ValueError("Não é a vez do jogador fazer palpite.")
 
-        jogador = self._encontrar_jogador(nome_jogador)
+        jogador = self.encontrar_jogador(nome_jogador)
 
         if not self.fase_palpite:
             raise ValueError("Não é fase de palpite.")
@@ -151,7 +151,7 @@ class Fodinha:
         if self.fase_palpite:
             raise ValueError("Ainda estamos na fase de palpites.")
 
-        jogador = self._encontrar_jogador(nome_jogador)
+        jogador = self.encontrar_jogador(nome_jogador)
         if jogador != self.vez:
             raise ValueError("Não é a vez do jogador.")
 
@@ -219,15 +219,15 @@ class Fodinha:
         self.jogadores = [j for j in self.jogadores if j.vidas_restantes() > 0]
 
     # --- Utilitários ---
-    def _encontrar_jogador(self, nome):
+    def encontrar_jogador(self, nome) -> Jogador | None:
         for j in self.jogadores:
             if j.nome == nome:
                 return j
-        raise ValueError("Jogador não encontrado.")
+        return None
 
     # --- Estado do Jogo ---
     def get_mao(self, nome_jogador):
-        jogador = self._encontrar_jogador(nome_jogador)
+        jogador = self.encontrar_jogador(nome_jogador)
         if self.rodada == 1:
             return {j.nome: j.cartas for j in self.jogadores if j != jogador}
         return jogador.cartas
