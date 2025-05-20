@@ -22,7 +22,7 @@ class Jogador:
         return max(0, 3 - abs(self.palpite_acumulado - self.rodadas_ganhas))
 
     def reset_rodada(self):
-        self.palpite_acumulado = self.palpite_acumulado + (self.palpite or 0)
+        self.palpite_acumulado += self.palpite or 0
         self.cartas = []
         self.palpite = None
 
@@ -32,20 +32,24 @@ class Jogador:
 
 class Fodinha:
     def __init__(self):
-        self.baralho = Baralho()
         self.jogadores: list[Jogador] = []
-        self.rodada = 0
         self.maximo_jogadores = 4
         self.maximo_cartas = 5
+        self.baralho = Baralho()
         self.comecou = False
+        self.rodada = 0
+
         self.vira: Carta | None = None
         self.vez: Jogador | None = None
-        self.mesa = []
+        self.vez_palpite: Jogador | None = None
         self.fase_palpite = True
-        self.ultimo_vencedor = None
+
+        self.mesa = []
         self.carta_vencedora = None
         self.jogador_vencedor_parcial = None
+        self.ultimo_vencedor = None
 
+    # --- Setup do Jogo ---
     def adicionar_jogador(self, nome):
         if len(self.jogadores) >= self.maximo_jogadores:
             raise ValueError("Máximo de jogadores atingido.")
@@ -62,6 +66,12 @@ class Fodinha:
         for jogador in self.jogadores:
             jogador.reset_rodada()
 
+        # Alternância de quem começa o palpite
+        if self.vez_palpite is not None:
+            self._proximo_jogador_palpite()
+        else:
+            self.vez_palpite = self.jogadores[0]
+
         self.baralho = Baralho()
         self.baralho.embaralhar()
         self.vira = self.baralho.pegar_carta()
@@ -69,12 +79,13 @@ class Fodinha:
 
         num_cartas = self._num_cartas_rodada()
         for jogador in self.jogadores:
-            cartas = [self.baralho.pegar_carta() for _ in range(num_cartas)]
-            jogador.receber_cartas(cartas)
+            jogador.receber_cartas(
+                [self.baralho.pegar_carta() for _ in range(num_cartas)]
+            )
 
         self.mesa = []
         self.fase_palpite = True
-        self.vez = self.jogadores[0]
+        self.vez = self.vez_palpite
 
     def _num_cartas_rodada(self):
         crescente = list(range(1, self.maximo_cartas + 1))
@@ -83,7 +94,11 @@ class Fodinha:
         idx = (self.rodada - 1) % len(sequencia)
         return sequencia[idx]
 
+    # --- Palpites ---
     def fazer_palpite(self, nome_jogador, palpite):
+        if self.vez_palpite.nome != nome_jogador:  # type: ignore
+            raise ValueError("Não é a vez do jogador fazer palpite.")
+
         jogador = self._encontrar_jogador(nome_jogador)
 
         if not self.fase_palpite:
@@ -95,20 +110,14 @@ class Fodinha:
         if self.rodada == 1:
             if palpite not in [0, 1]:
                 raise ValueError("Na primeira rodada, palpite deve ser 0 ou 1.")
-
             jogador.palpite = palpite
 
-            num_palpites_feitos = len(
-                [j for j in self.jogadores if j.palpite is not None]
-            )
-            num_fazem = sum(j.palpite for j in self.jogadores if j.palpite)
-
-            if num_palpites_feitos == len(self.jogadores):
+            if all(j.palpite is not None for j in self.jogadores):
+                # Regra especial da primeira rodada
+                num_fazem = sum(j.palpite for j in self.jogadores if j.palpite)
                 if num_fazem == 1 and jogador.palpite == 0:
                     jogador.palpite = 1  # type: ignore
-
-            if all(j.palpite is not None for j in self.jogadores):
-                self.fase_palpite = False
+                self.fase_palpite = True
 
         else:
             palpites = [
@@ -128,9 +137,16 @@ class Fodinha:
 
             jogador.palpite = palpite
 
-            if all(j.palpite is not None for j in self.jogadores):
-                self.fase_palpite = False
+        if all(j.palpite is not None for j in self.jogadores):
+            self.fase_palpite = False
 
+        self._proximo_jogador_palpite()
+
+    def _proximo_jogador_palpite(self):
+        idx = self.jogadores.index(self.vez_palpite)  # type: ignore
+        self.vez_palpite = self.jogadores[(idx + 1) % len(self.jogadores)]
+
+    # --- Jogadas ---
     def fazer_jogada(self, nome_jogador, carta=None):
         if self.fase_palpite:
             raise ValueError("Ainda estamos na fase de palpites.")
@@ -139,7 +155,6 @@ class Fodinha:
         if jogador != self.vez:
             raise ValueError("Não é a vez do jogador.")
 
-        # Primeira rodada: jogada automática (jogador não vê sua carta)
         if self.rodada == 1:
             if len(jogador.cartas) != 1:
                 raise ValueError(
@@ -153,7 +168,7 @@ class Fodinha:
 
         self.mesa.append((carta_jogada, jogador))
 
-        # Atualiza quem está ganhando (ou se há empate)
+        # Verifica se há vencedor parcial
         if self.carta_vencedora is None:
             self.carta_vencedora = carta_jogada
             self.jogador_vencedor_parcial = jogador
@@ -196,27 +211,34 @@ class Fodinha:
             self.rodada += 1
             self._nova_rodada()
 
-    def _remover_jogadores_eliminados(self):
-        self.jogadores = [j for j in self.jogadores if j.vidas_restantes() > 0]
-
     def _proximo_jogador(self):
         idx = self.jogadores.index(self.vez)  # type: ignore
         self.vez = self.jogadores[(idx + 1) % len(self.jogadores)]
 
+    def _remover_jogadores_eliminados(self):
+        self.jogadores = [j for j in self.jogadores if j.vidas_restantes() > 0]
+
+    # --- Utilitários ---
+    def _encontrar_jogador(self, nome):
+        for j in self.jogadores:
+            if j.nome == nome:
+                return j
+        raise ValueError("Jogador não encontrado.")
+
+    # --- Estado do Jogo ---
     def get_mao(self, nome_jogador):
         jogador = self._encontrar_jogador(nome_jogador)
         if self.rodada == 1:
             return {j.nome: j.cartas for j in self.jogadores if j != jogador}
         return jogador.cartas
 
+    def get_vira(self):
+        return self.vira
+
     def get_mesa(self):
         return {
-            "cartas": [
-                (carta.__repr__(), jogador.nome) for carta, jogador in self.mesa
-            ],
-            "vencedora": (
-                self.carta_vencedora.__repr__() if self.carta_vencedora else None
-            ),
+            "cartas": [(repr(carta), jogador.nome) for carta, jogador in self.mesa],
+            "vencedora": repr(self.carta_vencedora) if self.carta_vencedora else None,
             "fazendo": (
                 self.jogador_vencedor_parcial.nome
                 if self.jogador_vencedor_parcial
@@ -237,11 +259,6 @@ class Fodinha:
                 for j in self.jogadores
             ],
             "vez": self.vez.nome if self.vez else None,
+            "vez_palpite": self.vez_palpite.nome if self.vez_palpite else None,
             "fase_palpite": self.fase_palpite,
         }
-
-    def _encontrar_jogador(self, nome):
-        for j in self.jogadores:
-            if j.nome == nome:
-                return j
-        raise ValueError("Jogador não encontrado.")
