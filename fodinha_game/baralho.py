@@ -4,7 +4,7 @@ from functools import total_ordering
 @total_ordering
 class Carta:
     ORDEM_TRUCO = ["4", "5", "6", "7", "Q", "J", "K", "A", "2", "3"]
-    NAIPES_ORDEM_MANILHA = {"Paus": 4, "Copas": 3, "Espadas": 2, "Ouros": 1}
+    NAIPES_ORDEM_MANILHA = {"P": 4, "C": 3, "E": 2, "O": 1}
 
     # Esta variável será configurada pelo jogo antes das comparações
     MANILHA = None  # Ex: '5'
@@ -14,7 +14,7 @@ class Carta:
         self.naipe = naipe
 
     def __str__(self):
-        return f"{self.valor} de {self.naipe}"
+        return f"{self.valor}{self.naipe}"
 
     def __repr__(self):
         return self.__str__()

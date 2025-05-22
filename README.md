@@ -1,111 +1,185 @@
-## 📘 Documentação de Uso – Classe `Fodinha`
+# 📘 Documentação da API – Jogo Fodinha
 
-A classe `Fodinha` implementa a lógica do jogo de cartas "Fodinha", permitindo gerenciar jogadores, rodadas, palpites, jogadas e acompanhar o estado do jogo.
-
----
-
-### ✅ **1. Inicialização**
-
-```python
-from jogo import Fodinha
-
-jogo = Fodinha()
-```
+Base URL: `http://localhost:5000/api`
 
 ---
 
-### 👥 **2. Adicionando Jogadores**
+## 🔧 POST `/novo-jogo`
 
-Adicione de 2 a 4 jogadores antes de iniciar o jogo.
+**Cria um novo jogo de Fodinha.**
 
-```python
-jogo.adicionar_jogador("Alice")
-jogo.adicionar_jogador("Bob")
+**Resposta de sucesso (201):**
+
+```json
+{
+  "id": "ABC123",
+  "message": "Novo jogo criado!"
+}
 ```
+
+**Erros:**
+
+* `403`: Limite de jogos simultâneos atingido.
 
 ---
 
-### 🕹️ **3. Iniciar o Jogo**
+## 👤 POST `/adicionar-jogador`
 
-Inicia o jogo e distribui as cartas da primeira rodada.
+**Adiciona um jogador a um jogo existente.**
 
-```python
-jogo.iniciar_jogo()
+**Body JSON:**
+
+```json
+{
+  "id_jogo": "ABC123",
+  "nome": "João"
+}
 ```
+
+**Respostas:**
+
+* `201`: Jogador adicionado com sucesso.
+* `403`: Jogador já adicionado.
+* `404`: Jogo não encontrado.
+* `500`: Falha ao adicionar jogador.
 
 ---
 
-### 🔮 **4. Fazer Palpites**
+## ▶️ POST `/iniciar-jogo`
 
-Cada jogador faz seu palpite em ordem, sobre quantas rodadas pretende ganhar.
-Use:
+**Inicia a partida de um jogo existente.**
 
-```python
-jogo.fazer_palpite("Alice", 1)
+**Body JSON:**
+
+```json
+{
+  "id_jogo": "ABC123"
+}
 ```
+
+**Respostas:**
+
+* `200`: Jogo iniciado com sucesso.
+* `404`: Jogo não encontrado.
 
 ---
 
-### 🃏 **5. Jogar Cartas**
+## 🗣️ POST `/fazer-palpite`
 
-Depois dos palpites, os jogadores jogam suas cartas em ordem:
+**Envia um palpite para o jogador da vez.**
 
-```python
-jogo.fazer_jogada("Alice", carta_objeto)
+**Body JSON:**
+
+```json
+{
+  "id_jogo": "ABC123",
+  "nome": "João",
+  "palpite": 2
+}
 ```
 
-> ⚠️ Na **primeira rodada**, o jogador joga automaticamente a única carta que tem (sem saber qual é), então `carta_objeto` deve ser omitido.
+**Respostas:**
+
+* `200`: Palpite registrado com sucesso.
+* `400`: Palpite inválido (fora do intervalo, fora da vez, etc.).
+* `404`: Jogo ou jogador não encontrado.
 
 ---
 
-### 📊 **6. Consultar Estado do Jogo**
+## 🃏 POST `/jogada`
 
-#### Ver o estado geral:
+**Faz uma jogada com a carta escolhida.**
 
-```python
-jogo.get_estado_jogo()
+**Body JSON:**
+
+```json
+{
+  "id_jogo": "ABC123",
+  "nome": "João",
+  "carta": "A♣"
+}
 ```
 
-#### Ver cartas na mesa:
+> **Nota:** Na primeira rodada, a jogada é automática e não requer `carta`.
 
-```python
-jogo.get_mesa()
-```
+**Respostas:**
 
-#### Ver a carta "vira" (definidora da manilha):
-
-```python
-jogo.get_vira()
-```
-
-#### Ver a mão de um jogador:
-
-```python
-jogo.get_mao("Bob")
-```
+* `200`: Jogada registrada com sucesso.
+* `400`: Carta inválida ou jogada fora da vez.
+* `404`: Jogo ou jogador não encontrado.
 
 ---
 
-### ⚔️ **7. Regras Internas Importantes**
+## 📊 GET `/estado-jogo?id_jogo=ABC123`
 
-* Cada jogador começa com **3 vidas**.
-* Perde vidas se o número de vitórias for diferente do palpite.
-* Jogadores são eliminados quando ficam com 0 vidas.
-* O jogo termina automaticamente quando sobrar apenas 1 jogador.
+**Retorna o estado completo do jogo.**
+
+**Resposta de sucesso (200):**
+
+```json
+{
+  "rodada": 2,
+  "jogadores": [
+    {
+      "nome": "João",
+      "vidas": 3,
+      "palpite": 2,
+      "ganhou": 1
+    },
+    ...
+  ],
+  "vez": "Maria",
+  "vez_palpite": "João",
+  "fase_palpite": true,
+  "vencedor": null,
+  "acabou": false
+}
+```
+
+**Erros:**
+
+* `400`: ID não fornecido.
+* `404`: Jogo não encontrado.
 
 ---
 
-### 🧪 Exemplo Completo
+## ♠️ GET `/mesa?id_jogo=ABC123`
 
-```python
-jogo = Fodinha()
-jogo.adicionar_jogador("Ana")
-jogo.adicionar_jogador("Beto")
-jogo.iniciar_jogo()
+**Retorna o estado atual da mesa.**
 
-jogo.fazer_palpite("Ana", 1)
-jogo.fazer_palpite("Beto", 0)
+**Resposta de sucesso (200):**
 
-mao = jogo.get_mao("Ana")
-jogo.fazer_jogada("Ana", mao[0])
+```json
+{
+  "cartas": ["A♣", "Q♠"],
+  "vencedora": "A♣",
+  "fazendo": "João",
+  "vira": "8♦"
+}
 ```
+
+**Erros:**
+
+* `400`: ID não fornecido.
+* `404`: Jogo não encontrado.
+
+---
+
+## ✋ GET `/mao?id_jogo=ABC123&nome=João`
+
+**Retorna as cartas da mão do jogador especificado.**
+
+> Na primeira rodada, o jogador **não vê sua própria carta**.
+
+**Resposta (200):**
+
+```json
+["2♦", "J♠", "5♥"]
+```
+
+**Erros:**
+
+* `400`: ID do jogo não fornecido.
+* `404`: Jogo ou jogador não encontrado.
+
+---

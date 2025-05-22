@@ -1,0 +1,173 @@
+openapi: 3.0.0
+info:
+  title: API Jogo Fodinha
+  description: API para gerenciar partidas do jogo Fodinha via HTTP
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:5000/api
+
+paths:
+  /novo-jogo:
+    post:
+      summary: Cria um novo jogo
+      responses:
+        '201':
+          description: Jogo criado com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  message:
+                    type: string
+        '403':
+          description: Limite de jogos atingido
+
+  /adicionar-jogador:
+    post:
+      summary: Adiciona um jogador ao jogo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id_jogo:
+                  type: string
+                nome:
+                  type: string
+      responses:
+        '201':
+          description: Jogador adicionado com sucesso
+        '403':
+          description: Jogador já adicionado
+        '404':
+          description: Jogo não encontrado
+        '500':
+          description: Erro ao adicionar jogador
+
+  /iniciar-jogo:
+    post:
+      summary: Inicia o jogo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id_jogo:
+                  type: string
+      responses:
+        '200':
+          description: Jogo iniciado
+        '404':
+          description: Jogo não encontrado
+
+  /fazer-palpite:
+    post:
+      summary: Envia um palpite do jogador
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id_jogo:
+                  type: string
+                nome:
+                  type: string
+                palpite:
+                  type: integer
+      responses:
+        '200':
+          description: Palpite registrado
+        '400':
+          description: Erro de validação
+        '404':
+          description: Jogo ou jogador não encontrado
+
+  /jogada:
+    post:
+      summary: Realiza uma jogada
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id_jogo:
+                  type: string
+                nome:
+                  type: string
+                carta:
+                  type: string
+      responses:
+        '200':
+          description: Jogada registrada
+        '400':
+          description: Jogada inválida
+        '404':
+          description: Jogo ou jogador não encontrado
+
+  /estado-jogo:
+    get:
+      summary: Consulta o estado atual do jogo
+      parameters:
+        - name: id_jogo
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Estado atual do jogo
+        '400':
+          description: ID não fornecido
+        '404':
+          description: Jogo não encontrado
+
+  /mesa:
+    get:
+      summary: Consulta o estado da mesa atual
+      parameters:
+        - name: id_jogo
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Estado da mesa
+        '400':
+          description: ID não fornecido
+        '404':
+          description: Jogo não encontrado
+
+  /mao:
+    get:
+      summary: Consulta a mão de um jogador
+      parameters:
+        - name: id_jogo
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: nome
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Mão do jogador
+        '400':
+          description: Dados ausentes
+        '404':
+          description: Jogo ou jogador não encontrado

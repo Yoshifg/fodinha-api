@@ -6,28 +6,26 @@ class Jogador:
         self.nome = nome
         self.cartas = []
         self.palpite = None
-        self.palpite_acumulado = 0
         self.rodadas_ganhas = 0
+        self.vidas = 3
 
     def receber_cartas(self, cartas):
         self.cartas = cartas
 
-    def jogar_carta(self, carta):
-        if carta not in self.cartas:
+    def jogar_carta(self, carta: str):
+        carta_jogada = Carta(carta[0], carta[1])
+        if carta_jogada not in self.cartas:
             raise ValueError("Jogador não possui essa carta.")
-        self.cartas.remove(carta)
-        return carta
-
-    def vidas_restantes(self):
-        return max(0, 3 - abs(self.palpite_acumulado - self.rodadas_ganhas))
+        self.cartas.remove(carta_jogada)
+        return carta_jogada
 
     def reset_rodada(self):
-        self.palpite_acumulado += self.palpite or 0
         self.cartas = []
         self.palpite = None
+        self.rodadas_ganhas = 0
 
     def __repr__(self):
-        return f"Jogador({self.nome}, Vidas: {self.vidas_restantes()}, Cartas: {self.cartas})"
+        return f"Jogador({self.nome}, Vidas: {self.vidas}, Cartas: {self.cartas})"
 
 
 class Fodinha:
@@ -37,6 +35,7 @@ class Fodinha:
         self.maximo_cartas = 5
         self.baralho = Baralho()
         self.comecou = False
+        self.acabou = False
         self.rodada = 0
 
         self.vira: Carta | None = None
@@ -48,6 +47,7 @@ class Fodinha:
         self.carta_vencedora = None
         self.jogador_vencedor_parcial = None
         self.ultimo_vencedor = None
+        self.vencedor_final = None
 
     # --- Setup do Jogo ---
     def adicionar_jogador(self, nome):
@@ -63,6 +63,9 @@ class Fodinha:
         self._nova_rodada()
 
     def _nova_rodada(self):
+        if self.rodada > 1:
+            self._atualizar_vidas()
+
         for jogador in self.jogadores:
             jogador.reset_rodada()
 
@@ -71,6 +74,18 @@ class Fodinha:
             self._proximo_jogador_palpite()
         else:
             self.vez_palpite = self.jogadores[0]
+
+        for i in range(len(self.jogadores) - 1):
+            if self.vez_palpite.vidas <= 0:
+                self._proximo_jogador_palpite()
+            else:
+                break
+
+        self._remover_jogadores_eliminados()
+        if len(self.jogadores) < 2:
+            self.comecou = False
+            self.acabou = True
+            self.vencedor_final = self.jogadores[0] if self.jogadores else None
 
         self.baralho = Baralho()
         self.baralho.embaralhar()
@@ -87,6 +102,13 @@ class Fodinha:
         self.fase_palpite = True
         self.vez = self.vez_palpite
 
+        return 0
+
+    def _atualizar_vidas(self):
+        for jogador in self.jogadores:
+            if jogador.rodadas_ganhas != jogador.palpite:
+                jogador.vidas -= 1
+
     def _num_cartas_rodada(self):
         crescente = list(range(1, self.maximo_cartas + 1))
         decrescente = list(range(self.maximo_cartas - 1, 0, -1))
@@ -96,46 +118,30 @@ class Fodinha:
 
     # --- Palpites ---
     def fazer_palpite(self, nome_jogador, palpite):
+        if not self.fase_palpite:
+            raise ValueError("Não é fase de palpite.")
+
         if self.vez_palpite.nome != nome_jogador:  # type: ignore
             raise ValueError("Não é a vez do jogador fazer palpite.")
 
         jogador = self.encontrar_jogador(nome_jogador)
 
-        if not self.fase_palpite:
-            raise ValueError("Não é fase de palpite.")
-
         if jogador.palpite is not None:
             raise ValueError("Palpite já feito.")
 
-        if self.rodada == 1:
-            if palpite not in [0, 1]:
-                raise ValueError("Na primeira rodada, palpite deve ser 0 ou 1.")
-            jogador.palpite = palpite
+        # Verifica se o palpite é válido
+        if palpite < 0 or palpite > self.rodada:
+            raise ValueError("Palpite inválido. Deve ser entre 0 e o número da rodada.")
 
-            if all(j.palpite is not None for j in self.jogadores):
-                # Regra especial da primeira rodada
-                num_fazem = sum(j.palpite for j in self.jogadores if j.palpite)
-                if num_fazem == 1 and jogador.palpite == 0:
-                    jogador.palpite = 1  # type: ignore
-                self.fase_palpite = True
+        # Simula a soma final antes de aceitar o palpite
+        outros_palpites = sum(j.palpite or 0 for j in self.jogadores if j != jogador)
+        total = outros_palpites + palpite
+        num_palpites = sum(1 for j in self.jogadores if j.palpite is not None)
 
-        else:
-            palpites = [
-                j.palpite if j.nome != nome_jogador and j.palpite is not None else 0
-                for j in self.jogadores
-            ]
-            total = sum(palpites) + palpite
+        if num_palpites == len(self.jogadores) - 1 and total == self.rodada:
+            raise ValueError("Soma dos palpites não pode ser igual ao número de cartas.")
 
-            if (
-                len([j for j in self.jogadores if j.palpite is not None])
-                == len(self.jogadores) - 1
-            ):
-                if total == self._num_cartas_rodada():
-                    raise ValueError(
-                        "Soma dos palpites não pode ser igual ao número de cartas."
-                    )
-
-            jogador.palpite = palpite
+        jogador.palpite = palpite
 
         if all(j.palpite is not None for j in self.jogadores):
             self.fase_palpite = False
@@ -156,10 +162,6 @@ class Fodinha:
             raise ValueError("Não é a vez do jogador.")
 
         if self.rodada == 1:
-            if len(jogador.cartas) != 1:
-                raise ValueError(
-                    "Jogador deve ter exatamente uma carta na primeira rodada."
-                )
             carta_jogada = jogador.cartas.pop()
         else:
             if carta is None:
@@ -198,16 +200,6 @@ class Fodinha:
         self.jogador_vencedor_parcial = None
 
         if all(len(j.cartas) == 0 for j in self.jogadores):
-            self._remover_jogadores_eliminados()
-
-            if self.vez not in self.jogadores:
-                self.vez = self.jogadores[0] if self.jogadores else None
-
-            if len(self.jogadores) == 1:
-                print(f"Fim de jogo! {self.jogadores[0].nome} venceu!")
-                self.comecou = False
-                return
-
             self.rodada += 1
             self._nova_rodada()
 
@@ -216,7 +208,7 @@ class Fodinha:
         self.vez = self.jogadores[(idx + 1) % len(self.jogadores)]
 
     def _remover_jogadores_eliminados(self):
-        self.jogadores = [j for j in self.jogadores if j.vidas_restantes() > 0]
+        self.jogadores = [j for j in self.jogadores if j.vidas > 0]
 
     # --- Utilitários ---
     def encontrar_jogador(self, nome) -> Jogador | None:
@@ -237,13 +229,14 @@ class Fodinha:
 
     def get_mesa(self):
         return {
-            "cartas": [(repr(carta), jogador.nome) for carta, jogador in self.mesa],
-            "vencedora": repr(self.carta_vencedora) if self.carta_vencedora else None,
+            "cartas": [(str(carta), jogador.nome) for carta, jogador in self.mesa],
+            "vencedora": str(self.carta_vencedora) if self.carta_vencedora else None,
             "fazendo": (
                 self.jogador_vencedor_parcial.nome
                 if self.jogador_vencedor_parcial
                 else None
             ),
+            "vira": str(self.get_vira()),
         }
 
     def get_estado_jogo(self):
@@ -252,7 +245,7 @@ class Fodinha:
             "jogadores": [
                 {
                     "nome": j.nome,
-                    "vidas": j.vidas_restantes(),
+                    "vidas": j.vidas,
                     "palpite": j.palpite,
                     "ganhou": j.rodadas_ganhas,
                 }
@@ -261,4 +254,6 @@ class Fodinha:
             "vez": self.vez.nome if self.vez else None,
             "vez_palpite": self.vez_palpite.nome if self.vez_palpite else None,
             "fase_palpite": self.fase_palpite,
+            "vencedor": self.vencedor_final,
+            "acabou": self.acabou,
         }
